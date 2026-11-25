@@ -167,18 +167,18 @@ textarea.exp{width:100%;height:240px;font:12px monospace}
 </dialog>
 
 <dialog id="ds">
-  <div class="mh"><h2>Scanner un code-barres</h2><button type="button" class="btn" id="dsx">✕</button></div>
-  <div class="mb">
-    <video id="vid" playsinline muted style="width:100%;max-height:280px;background:#000;border-radius:8px;object-fit:cover"></video>
-    <label style="display:flex;gap:8px;align-items:center;margin:8px 0;color:var(--ink);font-size:14px"><input type="checkbox" id="scRapid" style="width:auto;margin:0"> ⚡ Ajout rapide : enregistre tout seul si trouvé en ligne</label>
+  <div class="mh"><h2>Scanner</h2><button type="button" class="btn" id="dsx">✕</button></div>
+  <div class="mb" style="padding-top:10px">
+    <div id="scRes" style="min-height:92px;margin-bottom:8px"><div class="sub" style="padding:8px 0">Le résultat s’affichera ici.</div></div>
+    <video id="vid" playsinline muted style="width:100%;height:150px;background:#000;border-radius:8px;object-fit:cover"></video>
     <div class="sub" id="scSt" style="margin:6px 0">Vise le code-barres au dos du livre.</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-      <button class="btn" id="scPhoto">📸 Prendre une photo</button>
+    <label style="display:flex;gap:8px;align-items:center;margin:6px 0 10px;color:var(--ink);font-size:14px"><input type="checkbox" id="scRapid" style="width:auto;margin:0"> ⚡ Ajout rapide : enregistre tout seul si trouvé</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn" id="scPhoto">📸 Photo</button>
       <input type="file" id="scFile" accept="image/*" capture="environment" hidden>
       <input type="text" id="scMan" inputmode="numeric" placeholder="ou tape le code" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)">
       <button class="btn" id="scGo">OK</button>
     </div>
-    <div id="scRes"></div>
   </div>
 </dialog>
 <div id="toast"></div>
@@ -405,6 +405,9 @@ $('#imf').onchange=async e=>{
 };
 
 /* ---------- recherche en ligne ---------- */
+/* Colle ta clé Google Books entre les guillemets */
+const GB_KEY='';
+const gbk=()=>GB_KEY?('&key='+encodeURIComponent(GB_KEY)):'';
 let LOG=[];
 async function getJson(url,tag){
   const c=new AbortController(),t=setTimeout(()=>c.abort(),9000);
@@ -424,10 +427,10 @@ async function lookupCode(code){
   LOG=[];
   if(!/^97[89]\d{10}$/.test(code)){LOG.push('Ce code n’est pas un ISBN (il doit commencer par 978 ou 979)');return null}
   // 1. Google Books (isbn:)
-  try{const j=await getJson('https://www.googleapis.com/books/v1/volumes?q=isbn:'+code+'&maxResults=3','Google Books');
+  try{const j=await getJson('https://www.googleapis.com/books/v1/volumes?q=isbn:'+code+'&maxResults=3'+gbk(),'Google Books');
     const v=j.items&&j.items[0]&&j.items[0].volumeInfo;if(v&&v.title)return gbMap(v);LOG.push('Google Books : aucun résultat')}catch(e){}
   // 2. Google Books (recherche libre sur le code)
-  try{const j=await getJson('https://www.googleapis.com/books/v1/volumes?q='+code+'&maxResults=3&country=FR','Google Books (2)');
+  try{const j=await getJson('https://www.googleapis.com/books/v1/volumes?q='+code+'&maxResults=3&country=FR'+gbk(),'Google Books (2)');
     const v=j.items&&j.items[0]&&j.items[0].volumeInfo;if(v&&v.title)return gbMap(v);LOG.push('Google Books (2) : aucun résultat')}catch(e){}
   // 3. Open Library (données)
   try{const j=await getJson('https://openlibrary.org/api/books?bibkeys=ISBN:'+code+'&format=json&jscmd=data','Open Library');
@@ -476,7 +479,7 @@ function mkReader(){
   return new Z.BrowserMultiFormatReader(h,300);
 }
 function openScan(mode){
-  scMode=mode;$('#scRes').innerHTML='';$('#scMan').value='';
+  scMode=mode;$('#scRes').innerHTML='<div class="sub" style="padding:8px 0">Le résultat s’affichera ici.</div>';$('#scMan').value='';
   $('#ds').showModal();
   scStatus('Démarrage de la caméra…');
   startLive();
@@ -522,6 +525,7 @@ async function decodePhoto(file){
 }
 function onCode(raw){
   const code=normCode(raw);
+  try{navigator.vibrate&&navigator.vibrate(80)}catch(e){}
   if(scMode==='fill'){
     F().code.value=code;scStop();$('#ds').close();scBusy=false;toast('Recherche en ligne…');
     lookupCode(code).then(async info=>{if(!info){toast('Rien trouvé : '+(LOG.join(' · ')||'remplis à la main'));return}info.cover=await coverToData(info.cover);applyInfo(info);toast('Fiche remplie ('+info.src+'). Vérifie avant d’enregistrer.')});return;
