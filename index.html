@@ -137,9 +137,12 @@ textarea.exp{width:100%;height:240px;font:12px monospace}
       <label>Notes<textarea name="notes" rows="2" maxlength="1000"></textarea></label>
       <div class="cvrow">
         <div class="cvp" id="cvp"></div>
-        <div><button type="button" class="btn" id="bCv">Choisir une couverture</button>
+        <div><button type="button" class="btn" id="bCvCam">📷 Photo de la couverture</button>
+        <button type="button" class="btn" id="bCv">🖼 Galerie</button>
         <button type="button" class="btn" id="bCvX">Retirer</button>
-        <input type="file" id="cvf" accept="image/*" hidden></div>
+        <button type="button" class="btn" id="bCvNet">🌐 Chercher en ligne</button>
+        <input type="file" id="cvf" accept="image/*" hidden>
+        <input type="file" id="cvc" accept="image/*" capture="environment" hidden></div>
       </div>
     </div>
     <div class="mf">
@@ -332,7 +335,7 @@ function resizeImage(file){
     const r=new FileReader();
     r.onerror=rej;
     r.onload=()=>{const img=new Image();img.onerror=rej;img.onload=()=>{
-      const W=240,k=Math.min(1,W/img.width),c=document.createElement('canvas');
+      const W=300,k=Math.min(1,W/img.width),c=document.createElement('canvas');
       c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
       c.getContext('2d').drawImage(img,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.72));
     };img.src=r.result};
@@ -368,7 +371,20 @@ $('#dx').onclick=$('#bCancel').onclick=()=>$('#dlg').close();
 document.querySelectorAll('input[name=type]').forEach(r=>r.addEventListener('change',applyType));
 $('#rate').onclick=e=>{const n=e.target.dataset&&+e.target.dataset.n;if(n){rating=rating===n?0:n;drawRate()}};
 $('#bCv').onclick=()=>$('#cvf').click();
+$('#bCvCam').onclick=()=>$('#cvc').click();
+$('#cvc').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{setCover(await resizeImage(f));toast('Couverture ajoutée')}catch(x){toast('Image illisible')}e.target.value=''};
 $('#bCvX').onclick=()=>setCover('');
+$('#bCvNet').onclick=async()=>{
+  const f=F(),code=normCode(f.code.value);
+  if(!/^97[89]\d{10}$/.test(code)){toast('Entre d’abord l’ISBN (13 chiffres, 978…)');return}
+  toast('Recherche en ligne…');
+  const info=await lookupCode(code);
+  if(!info){toast('Rien trouvé : '+(LOG.join(' · ')||'inconnu'));return}
+  const keep=cover;applyInfo(info);
+  const d=await bestCover(info,code);
+  if(d){setCover(d);toast('Couverture trouvée ('+info.src+')')}else{setCover(keep);toast('Fiche trouvée, mais aucune couverture disponible')}
+};
+
 $('#cvf').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{setCover(await resizeImage(f))}catch(x){toast('Image illisible')}e.target.value=''};
 $('#bDel').onclick=()=>{
   const b=$('#bDel');
@@ -448,6 +464,11 @@ async function lookupCode(code){
   const info=await lookupCore(code);
   if(info&&!info.cover&&/^97[89]\d{10}$/.test(code))info.cover='https://covers.openlibrary.org/b/isbn/'+code+'-M.jpg?default=false';
   return info;
+}
+async function bestCover(info,code){
+  const c=[info&&info.cover,'https://covers.openlibrary.org/b/isbn/'+code+'-M.jpg?default=false'].filter(Boolean);
+  for(const u of c){const d=await coverToData(u);if(d&&!/^https?:/.test(d))return d}
+  const f=c[0];return f&&!/default=false/.test(f)?f:'';
 }
 async function coverToData(url){
   if(!url)return '';
@@ -541,7 +562,7 @@ function onCode(raw){
   try{navigator.vibrate&&navigator.vibrate(80)}catch(e){}
   if(scMode==='fill'){
     F().code.value=code;scStop();$('#ds').close();scBusy=false;toast('Recherche en ligne…');
-    lookupCode(code).then(async info=>{if(!info){toast('Rien trouvé : '+(LOG.join(' · ')||'remplis à la main'));return}info.cover=await coverToData(info.cover);applyInfo(info);toast('Fiche remplie ('+info.src+'). Vérifie avant d’enregistrer.')});return;
+    lookupCode(code).then(async info=>{if(!info){toast('Rien trouvé : '+(LOG.join(' · ')||'remplis à la main'));return}info.cover=await bestCover(info,code);applyInfo(info);toast('Fiche remplie ('+info.src+'). Vérifie avant d’enregistrer.')});return;
   }
   scStatus('Code lu : '+code);
   const hits=items.filter(it=>it.code&&normCode(it.code)===code);
@@ -556,7 +577,7 @@ function onCode(raw){
       found=info;
       if(info&&$('#scRapid').checked){
         (async()=>{
-          const cv2=await coverToData(info.cover);
+          const cv2=await bestCover(info,code);
           await save({id:uid(),added:Date.now(),type:'livre',title:info.title,series:'',volume:'',creator:info.creator,publisher:info.publisher,year:info.year,format:FORMATS.livre[0],genre:info.genre,code:code,location:'',wish:false,done:false,rating:0,loanedTo:'',loanDate:'',notes:'',cover:cv2});
           r.innerHTML='<div style="font-weight:600;color:var(--ok)">✅ Ajouté : '+esc(info.title)+'</div><div class="sub">'+esc(info.creator||'')+' — scanne le suivant.</div>';
         })();
@@ -571,7 +592,7 @@ function onCode(raw){
 }
 async function addFromScan(code,wish,info){
   scStop();$('#ds').close();openForm(null,wish);F().code.value=code;
-  if(info){applyInfo(info);if(info.cover&&info.cover.startsWith('http')){const d=await coverToData(info.cover);if(cover===info.cover)setCover(d)}}
+  if(info){applyInfo(info);if(info.cover&&info.cover.startsWith('http')){const d=await bestCover(info,code);if(cover===info.cover)setCover(d)}}
 }
 function scRefocus(){
   const t=scTrack;if(!t)return;
