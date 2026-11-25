@@ -425,7 +425,7 @@ async function getJson(url,tag){
 }
 function fixImg(u){return u?String(u).replace(/^http:/,'https:').replace('&edge=curl',''):''}
 function gbMap(v){return{type:'livre',title:v.title+(v.subtitle?' - '+v.subtitle:''),creator:(v.authors||[]).join(', '),publisher:v.publisher||'',year:(v.publishedDate||'').slice(0,4),genre:(v.categories||[])[0]||'',cover:fixImg(v.imageLinks&&(v.imageLinks.thumbnail||v.imageLinks.smallThumbnail)),src:'Google Books'}}
-async function lookupCode(code){
+async function lookupCore(code){
   LOG=[];
   if(!/^97[89]\d{10}$/.test(code)){LOG.push('Ce code n’est pas un ISBN (il doit commencer par 978 ou 979)');return null}
   // 1. Google Books (isbn:)
@@ -444,9 +444,19 @@ async function lookupCode(code){
     if(v&&v.title)return{type:'livre',title:v.title,creator:'',publisher:(v.publishers||[]).join(', '),year:((v.publish_date||'').match(/\d{4}/)||[''])[0],genre:'',cover:'https://covers.openlibrary.org/b/isbn/'+code+'-M.jpg',src:'Open Library'}}catch(e){}
   return null;
 }
+async function lookupCode(code){
+  const info=await lookupCore(code);
+  if(info&&!info.cover&&/^97[89]\d{10}$/.test(code))info.cover='https://covers.openlibrary.org/b/isbn/'+code+'-M.jpg?default=false';
+  return info;
+}
 async function coverToData(url){
   if(!url)return '';
-  try{const r=await fetch(url);if(!r.ok)throw 0;const b=await r.blob();return await resizeImage(b)}catch(e){return url}
+  const strict=/default=false/.test(url);
+  const tries=[url,'https://wsrv.nl/?url='+encodeURIComponent(url)+'&w=300&output=jpg'];
+  for(const u of tries){
+    try{const r=await fetch(u);if(!r.ok)continue;const b=await r.blob();if(b.size<800)continue;return await resizeImage(b)}catch(e){}
+  }
+  return strict?'':url;
 }
 function applyInfo(info){
   const f=F();
@@ -561,7 +571,7 @@ function onCode(raw){
 }
 async function addFromScan(code,wish,info){
   scStop();$('#ds').close();openForm(null,wish);F().code.value=code;
-  if(info){applyInfo(info);if(info.cover&&info.cover.startsWith('http')){const d=await coverToData(info.cover);if(d&&cover===info.cover)setCover(d)}}
+  if(info){applyInfo(info);if(info.cover&&info.cover.startsWith('http')){const d=await coverToData(info.cover);if(cover===info.cover)setCover(d)}}
 }
 function scRefocus(){
   const t=scTrack;if(!t)return;
