@@ -171,6 +171,7 @@ textarea.exp{width:100%;height:240px;font:12px monospace}
   <div class="mb" style="padding-top:10px">
     <div id="scRes" style="min-height:92px;margin-bottom:8px"><div class="sub" style="padding:8px 0">Le résultat s’affichera ici.</div></div>
     <video id="vid" playsinline muted style="width:100%;height:150px;background:#000;border-radius:8px;object-fit:cover"></video>
+    <div style="display:flex;gap:6px;margin-top:6px"><button type="button" class="btn" id="scFocus">🎯 Mise au point</button><button type="button" class="btn" id="scZoom">🔍 Zoom ×1</button></div>
     <div class="sub" id="scSt" style="margin:6px 0">Vise le code-barres au dos du livre.</div>
     <label style="display:flex;gap:8px;align-items:center;margin:6px 0 10px;color:var(--ink);font-size:14px"><input type="checkbox" id="scRapid" style="width:auto;margin:0"> ⚡ Ajout rapide : enregistre tout seul si trouvé</label>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -406,7 +407,7 @@ $('#imf').onchange=async e=>{
 
 /* ---------- recherche en ligne ---------- */
 /* Colle ta clé Google Books entre les guillemets */
-const GB_KEY='AIzaSyDoXg_SayzClm-4upe5yugearebSxDF_mU';
+const GB_KEY='';
 const gbk=()=>GB_KEY?('&key='+encodeURIComponent(GB_KEY)):'';
 let LOG=[];
 async function getJson(url,tag){
@@ -484,13 +485,14 @@ function openScan(mode){
   scStatus('Démarrage de la caméra…');
   startLive();
 }
-let scLoop=null,scStream=null;
+let scLoop=null,scStream=null,scTrack=null,scZ=1;
 async function startLive(){
   scStop();
   const v=$('#vid');
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw 0;
-    scStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},focusMode:{ideal:'continuous'}},audio:false});
+    scStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},focusMode:{ideal:'continuous'}},audio:false});
+    scTrack=scStream.getVideoTracks()[0];scZ=1;try{$('#scZoom').textContent='🔍 Zoom ×1'}catch(e){}
     v.srcObject=scStream;await v.play();
     try{const tr=scStream.getVideoTracks()[0],cap=tr.getCapabilities&&tr.getCapabilities();
       if(cap&&cap.focusMode&&cap.focusMode.includes('continuous'))await tr.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
@@ -499,7 +501,7 @@ async function startLive(){
     const Z=window.ZXing;let zr=null;
     if(!det&&Z){zr=mkReader()}
     const cv=document.createElement('canvas');
-    scStatus('Vise le code-barres (bien éclairé, à 15-20 cm).');
+    scStatus('Vise le code-barres. Si c’est flou : recule un peu, touche l’image ou utilise le zoom.');
     scLoop=setInterval(async()=>{
       if(scBusy||v.readyState<2||!v.videoWidth)return;
       try{
@@ -560,6 +562,19 @@ async function addFromScan(code,wish,info){
   scStop();$('#ds').close();openForm(null,wish);F().code.value=code;
   if(info){applyInfo(info);if(info.cover&&info.cover.startsWith('http')){const d=await coverToData(info.cover);if(d&&cover===info.cover)setCover(d)}}
 }
+function scRefocus(){
+  const t=scTrack;if(!t)return;
+  try{t.applyConstraints({advanced:[{focusMode:'single-shot'}]}).catch(()=>{}).then(()=>setTimeout(()=>{try{t.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{})}catch(e){}},1000));scStatus('Mise au point… tiens le livre immobile, à 15-20 cm.')}catch(e){}
+}
+function scZoomToggle(){
+  const t=scTrack;if(!t)return;
+  const cap=t.getCapabilities&&t.getCapabilities();
+  if(!cap||!cap.zoom){toast('Zoom non disponible sur ce téléphone');return}
+  scZ=scZ===1?Math.min(2,cap.zoom.max):1;
+  t.applyConstraints({advanced:[{zoom:scZ}]}).catch(()=>{});
+  $('#scZoom').textContent='🔍 Zoom ×'+scZ;
+}
+$('#scFocus').onclick=scRefocus;$('#scZoom').onclick=scZoomToggle;$('#vid').onclick=scRefocus;
 $('#bScan').onclick=()=>openScan('search');
 $('#bScanF').onclick=()=>openScan('fill');
 $('#dsx').onclick=()=>{scStop();$('#ds').close()};
