@@ -73,7 +73,8 @@ label input,label select,label textarea{display:block;width:100%;margin-top:3px;
 .chk{display:flex;gap:16px;margin-bottom:8px;flex-wrap:wrap}
 .chk label{display:flex;align-items:center;gap:6px;margin:0;font-size:14px;color:var(--ink)}
 .chk input{width:auto;margin:0}
-#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;display:none;z-index:99}
+#toast{position:fixed;inset:auto auto 16px 50%;margin:0;transform:translateX(-50%);max-width:90vw;border:0;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;display:none;z-index:99;text-align:center}
+#toast:popover-open{display:block}
 textarea.exp{width:100%;height:240px;font:12px monospace}
 @media(max-width:520px){.row,.row.three{grid-template-columns:1fr}}
 </style>
@@ -188,7 +189,7 @@ textarea.exp{width:100%;height:240px;font:12px monospace}
     </div>
   </div>
 </dialog>
-<div id="toast"></div>
+<div id="toast" popover="manual"></div>
 
 <datalist id="dl-series"></datalist><datalist id="dl-creator"></datalist><datalist id="dl-genre"></datalist>
 
@@ -209,7 +210,7 @@ let items=[], tab='all', view='grid', editing=null, rating=0, cover='', backend=
 function lsRead(){try{const a=JSON.parse(localStorage.getItem(LS)||'[]');return Array.isArray(a)?a.map(x=>Object.assign(x,{type:'livre'})):[]}catch(e){return []}}
 function lsWrite(){try{localStorage.setItem(LS,JSON.stringify(items))}catch(e){}}
 function setStore(t){$('#store').textContent=t}
-function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3200)}
+function toast(m){const t=$('#toast');t.textContent=m;try{if(t.matches(':popover-open'))t.hidePopover();t.showPopover()}catch(e){t.style.display='block'}clearTimeout(toast.h);toast.h=setTimeout(()=>{try{t.hidePopover()}catch(e){}t.style.display=''},3800)}
 
 async function persist(it){
   if(backend.type==='db'){try{await backend.col.doc(it.id).set(it)}catch(e){toast('Échec de sauvegarde ('+((e&&e.code)||'erreur')+')')}}
@@ -227,7 +228,7 @@ async function remove(id){
 }
 async function initStore(){
   items=lsRead();
-  setStore('Données enregistrées sur ce téléphone (pense à exporter une sauvegarde de temps en temps) · version 12');
+  setStore('Données enregistrées sur ce téléphone (pense à exporter une sauvegarde de temps en temps) · version 13');
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
   render();
 }
