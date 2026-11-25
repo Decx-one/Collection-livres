@@ -66,7 +66,10 @@ label input,label select,label textarea{display:block;width:100%;margin-top:3px;
 .seg input:checked+span{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .rate{font-size:24px;color:var(--warn);cursor:pointer;user-select:none}
 .cvrow{display:flex;gap:12px;align-items:center;margin-bottom:10px}
-.cvp{width:60px;height:80px;border-radius:6px;background:var(--bg) center/cover;border:1px dashed var(--line)}
+.cvp{width:150px;height:200px;flex:none;border-radius:8px;background:var(--bg) center/cover;border:1px dashed var(--line);cursor:zoom-in}
+.cvp.big{width:min(260px,72vw);height:min(347px,96vw);cursor:zoom-out}
+.cvrow{flex-direction:column;align-items:flex-start!important}
+.cvrow>div:last-child{display:flex;flex-wrap:wrap;gap:6px;width:100%}
 .chk{display:flex;gap:16px;margin-bottom:8px;flex-wrap:wrap}
 .chk label{display:flex;align-items:center;gap:6px;margin:0;font-size:14px;color:var(--ink)}
 .chk input{width:auto;margin:0}
@@ -224,7 +227,7 @@ async function remove(id){
 }
 async function initStore(){
   items=lsRead();
-  setStore('Données enregistrées sur ce téléphone (pense à exporter une sauvegarde de temps en temps)');
+  setStore('Données enregistrées sur ce téléphone (pense à exporter une sauvegarde de temps en temps) · version 12');
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
   render();
 }
@@ -322,7 +325,7 @@ function openForm(it,wish){
   ['title','series','volume','creator','publisher','year','genre','code','location','loanedTo','loanDate','notes'].forEach(k=>f[k].value=d[k]||'');
   f.format.value=d.format||FORMATS[d.type][0];
   f.wish.checked=!!d.wish;f.done.checked=!!d.done;
-  rating=d.rating||0;drawRate();setCover(d.cover);
+  rating=d.rating||0;drawRate();setCover(d.cover);$('#cvp').classList.remove('big');
   $('#dlg').showModal();
 }
 function readForm(){
@@ -374,6 +377,7 @@ $('#bCv').onclick=()=>$('#cvf').click();
 $('#bCvCam').onclick=()=>$('#cvc').click();
 $('#cvc').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{setCover(await resizeImage(f));toast('Couverture ajoutée')}catch(x){toast('Image illisible')}e.target.value=''};
 $('#bCvX').onclick=()=>setCover('');
+$('#cvp').onclick=()=>{if(cover)$('#cvp').classList.toggle('big')};
 $('#bCvNet').onclick=async()=>{
   const f=F(),code=normCode(f.code.value);
   if(!/^97[89]\d{10}$/.test(code)){toast('Entre d’abord l’ISBN (13 chiffres, 978…)');return}
